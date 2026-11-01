@@ -43,6 +43,7 @@ static void zd_layout_children(const zd_ui_node *node, zd_rect bounds,
     int32_t inner_x;
     int32_t inner_y;
     int64_t cursor;
+    int64_t main_end;
 
     if (node == NULL || node->children == NULL ||
         node->child_count == 0U || callback == NULL) {
@@ -59,6 +60,7 @@ static void zd_layout_children(const zd_ui_node *node, zd_rect bounds,
     main_axis_row = (node->kind == ZD_UI_ROW) ? 1U : 0U;
     main_total = main_axis_row ? inner_width : inner_height;
     cursor = main_axis_row ? inner_x : inner_y;
+    main_end = cursor + main_total;
 
     for (i = 0U; i < node->child_count; ++i) {
         const zd_ui_node *child = node->children[i];
@@ -145,9 +147,12 @@ static void zd_layout_children(const zd_ui_node *node, zd_rect bounds,
                 }
             }
             if (has_next) {
-                uint32_t actual_gap = zd_min_u32(node->gap, remaining_main);
+                int64_t gap_space = main_end - cursor;
+                uint32_t actual_gap = (gap_space <= 0)
+                    ? 0U
+                    : ((gap_space < (int64_t)node->gap)
+                       ? (uint32_t)gap_space : node->gap);
                 cursor += actual_gap;
-                remaining_main -= actual_gap;
             }
         }
     }
