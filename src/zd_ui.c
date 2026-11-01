@@ -181,8 +181,12 @@ zd_result zd_ui_render(zd_surface *surface,
                        const zd_ui_node *root,
                        zd_rect viewport)
 {
-    if (zd_surface_validate(surface) != ZD_OK || root == NULL ||
-        viewport.width == 0U || viewport.height == 0U) {
+    zd_result surface_status = zd_surface_validate(surface);
+
+    if (surface_status != ZD_OK) {
+        return surface_status;
+    }
+    if (root == NULL || viewport.width == 0U || viewport.height == 0U) {
         return ZD_ERR_ARGUMENT;
     }
 
