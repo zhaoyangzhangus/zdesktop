@@ -9,6 +9,7 @@
 #endif
 
 static unsigned int failures;
+static const char *test_font_path = ZD_TEST_FONT_PATH;
 static uint8_t font_scratch[512U * 1024U];
 
 #define CHECK(condition) do { \
@@ -182,7 +183,7 @@ static void test_hit_test_and_hover_paint(void)
 
 static uint8_t *load_test_font(size_t *out_size)
 {
-    FILE *file = fopen(ZD_TEST_FONT_PATH, "rb");
+    FILE *file = fopen(test_font_path, "rb");
     long length;
     uint8_t *data;
 
@@ -227,8 +228,14 @@ static void test_ttf_rendering(void)
     size_t changed_pixels = 0U;
     size_t i;
 
-    CHECK(font_data != NULL);
-    if (font_data == NULL) return;
+    if (font_data == NULL) {
+        (void)fprintf(stderr,
+            "SKIP TTF integration tests: cannot read '%s'.\n"
+            "Install fonts-wqy-microhei (make debian-deps), or set FONT "
+            "to a readable .ttf/.ttc file and run make test-font.\n",
+            test_font_path);
+        return;
+    }
 
     if (zd_font_init(&font, font_data, font_size, 0U, 20U,
                      font_scratch, sizeof(font_scratch)) != ZD_OK) {
@@ -342,8 +349,12 @@ static void test_declarative_ui(void)
     CHECK(pixels[button_pixel + 2U] == 0xCCU);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    if (argc > 1 && argv[1][0] != '\0') {
+        test_font_path = argv[1];
+    }
+
     test_surface_format();
     test_pitch_validation();
     test_clipping();

@@ -5,6 +5,9 @@
 On Debian testing with GNOME:
 
 ~~~sh
+make debian-deps
+
+# Or install manually:
 sudo apt install build-essential pkg-config libsdl2-dev fonts-wqy-microhei
 ~~~
 
@@ -13,6 +16,9 @@ The default demo font is /usr/share/fonts/truetype/wqy/wqy-microhei.ttc, a two-f
 ## Build and launch
 
 ~~~sh
+make freestanding-check
+make test
+make test-font
 make desktop-build
 ./build/zdesktop-desktop
 ~~~

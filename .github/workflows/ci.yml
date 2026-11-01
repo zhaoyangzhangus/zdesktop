@@ -17,6 +17,6 @@ jobs:
         run: |
           make clean
           make freestanding-check
-          make test
+          make test-font
           make demo
           make desktop-build

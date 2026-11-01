@@ -12,6 +12,7 @@ SDL2_LIBS = $(shell $(PKG_CONFIG) --libs sdl2 2>/dev/null)
 BUILD_DIR = build
 FONT ?= /usr/share/fonts/truetype/wqy/wqy-microhei.ttc
 FONT_INDEX ?= 0
+DEBIAN_PACKAGES = build-essential pkg-config libsdl2-dev fonts-wqy-microhei
 CORE_SOURCES = src/zd_surface.c src/zd_draw.c src/zd_font.c src/zd_ui.c
 CORE_OBJECTS = $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(CORE_SOURCES))
 LIBRARY = $(BUILD_DIR)/libzdesktop.a
@@ -19,9 +20,13 @@ DEMO = $(BUILD_DIR)/zdesktop-demo
 DESKTOP = $(BUILD_DIR)/zdesktop-desktop
 TEST = $(BUILD_DIR)/test-render
 
-.PHONY: all clean test demo desktop desktop-build freestanding-check
+.PHONY: all clean test test-font demo desktop desktop-build freestanding-check debian-deps
 
 all: $(LIBRARY) $(DEMO)
+
+debian-deps:
+	sudo apt-get update
+	sudo apt-get install -y $(DEBIAN_PACKAGES)
 
 $(BUILD_DIR):
 	mkdir -p $@
@@ -41,13 +46,14 @@ $(DEMO): examples/debian_demo.c $(LIBRARY) include/zdesktop.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LIBRARY) -o $@
 
 $(TEST): tests/test_render.c $(LIBRARY) include/zdesktop.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) -DZD_TEST_FONT_PATH='"$(FONT)"' \
-		$< $(LIBRARY) -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LIBRARY) -o $@
 
 $(DESKTOP): examples/debian_desktop.c platform/debian/zd_debian.c \
             include/zdesktop_debian.h $(LIBRARY) | $(BUILD_DIR)
-	@$(PKG_CONFIG) --atleast-version=2.0.5 sdl2 || { \
-		echo "SDL2 development files are required. Install libsdl2-dev and pkg-config."; \
+	@command -v $(PKG_CONFIG) >/dev/null 2>&1 && \
+		$(PKG_CONFIG) --atleast-version=2.0.5 sdl2 || { \
+		echo "Missing SDL2 development dependencies."; \
+		echo "On Debian, run: make debian-deps"; \
 		exit 1; \
 	}
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL2_CFLAGS) \
@@ -58,7 +64,16 @@ freestanding-check: $(CORE_OBJECTS)
 	@echo "Core objects compiled with -ffreestanding -fno-builtin"
 
 test: $(TEST)
-	./$(TEST)
+	./$(TEST) "$(FONT)"
+
+test-font: $(TEST)
+	@test -r "$(FONT)" || { \
+		echo "TTF test font not found: $(FONT)"; \
+		echo "Install fonts-wqy-microhei with: make debian-deps"; \
+		echo "Or set FONT=/path/to/font.ttf or FONT=/path/to/font.ttc"; \
+		exit 1; \
+	}
+	./$(TEST) "$(FONT)"
 
 demo: $(DEMO)
 	./$(DEMO) $(BUILD_DIR)/zdesktop-demo.ppm "$(FONT)" $(FONT_INDEX)

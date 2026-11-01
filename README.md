@@ -34,6 +34,9 @@ The font parser intentionally supports TrueType glyf outlines. OpenType CFF .otf
 Install the dependencies and a CJK TrueType Collection font:
 
 ~~~sh
+make debian-deps
+
+# Equivalent manual installation:
 sudo apt update
 sudo apt install build-essential pkg-config libsdl2-dev fonts-wqy-microhei
 ~~~
@@ -48,7 +51,8 @@ Build the portable core, tests, and PPM demo:
 
 ~~~sh
 make
-make test
+make test       # core tests; TTF integration tests skip if FONT is unavailable
+make test-font  # require and run TTF/TTC integration tests
 make demo
 ~~~
 
