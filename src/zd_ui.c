@@ -161,25 +161,33 @@ static void zd_layout_children(const zd_ui_node *node, zd_rect bounds,
 typedef struct {
     zd_surface *surface;
     const zd_ui_state *state;
+    zd_font *font;
     uint32_t depth;
+    zd_result result;
 } zd_render_context;
 
-static void zd_render_node(zd_surface *surface, const zd_ui_node *node,
-                           zd_rect bounds, uint32_t depth,
-                           const zd_ui_state *state);
+static zd_result zd_render_node(zd_surface *surface,
+                                const zd_ui_node *node,
+                                zd_rect bounds, uint32_t depth,
+                                const zd_ui_state *state,
+                                zd_font *font);
 
 static void zd_render_child(const zd_ui_node *child, zd_rect child_bounds,
                             void *opaque)
 {
     zd_render_context *context = (zd_render_context *)opaque;
 
-    zd_render_node(context->surface, child, child_bounds,
-                   context->depth + 1U, context->state);
+    if (context->result != ZD_OK) return;
+    context->result = zd_render_node(context->surface, child, child_bounds,
+                                     context->depth + 1U,
+                                     context->state, context->font);
 }
 
-static void zd_render_node(zd_surface *surface, const zd_ui_node *node,
-                           zd_rect bounds, uint32_t depth,
-                           const zd_ui_state *state)
+static zd_result zd_render_node(zd_surface *surface,
+                                const zd_ui_node *node,
+                                zd_rect bounds, uint32_t depth,
+                                const zd_ui_state *state,
+                                zd_font *font)
 {
     uint32_t background;
     uint32_t border_color;
@@ -187,11 +195,10 @@ static void zd_render_node(zd_surface *surface, const zd_ui_node *node,
     uint32_t padding;
     uint32_t inner_width;
     uint32_t inner_height;
-    int32_t text_y;
 
     if (node == NULL || depth > ZD_UI_MAX_DEPTH ||
         bounds.width == 0U || bounds.height == 0U) {
-        return;
+        return ZD_OK;
     }
 
     background = node->background;
@@ -219,26 +226,48 @@ static void zd_render_node(zd_surface *surface, const zd_ui_node *node,
     }
 
     if (node->kind == ZD_UI_TEXT || node->kind == ZD_UI_BUTTON) {
-        uint32_t text_height = 7U;
-
-        padding = node->padding;
-        inner_width = (bounds.width > padding * 2U)
-                    ? bounds.width - padding * 2U : 0U;
-        inner_height = (bounds.height > padding * 2U)
-                     ? bounds.height - padding * 2U : 0U;
-        text_y = zd_i64_to_i32((int64_t)bounds.y + padding);
-        if (inner_height > text_height) {
-            text_y = zd_i64_to_i32((int64_t)text_y +
-                                   (inner_height - text_height) / 2U);
-        }
-
-        if (node->text != NULL && inner_width != 0U &&
+        if (font != NULL && node->text != NULL &&
             (node->foreground >> 24) != 0U) {
-            (void)zd_draw_text(surface,
+            zd_font local_font;
+            zd_font *draw_font = font;
+            zd_font_metrics metrics;
+            uint32_t text_height;
+            int64_t baseline;
+            int32_t drawn_width;
+            zd_result status;
+
+            padding = node->padding;
+            inner_width = (bounds.width > padding * 2U)
+                        ? bounds.width - padding * 2U : 0U;
+            inner_height = (bounds.height > padding * 2U)
+                         ? bounds.height - padding * 2U : 0U;
+            if (inner_width == 0U) return ZD_OK;
+
+            if (node->font_size != 0U &&
+                node->font_size != font->pixel_height) {
+                local_font = *font;
+                status = zd_font_set_pixel_height(
+                    &local_font, node->font_size);
+                if (status != ZD_OK) return status;
+                draw_font = &local_font;
+            }
+
+            status = zd_font_get_metrics(draw_font, &metrics);
+            if (status != ZD_OK) return status;
+            text_height = metrics.line_height;
+            baseline = (int64_t)bounds.y + padding + metrics.ascent;
+            if (inner_height > text_height) {
+                baseline += (inner_height - text_height) / 2U;
+            }
+
+            status = zd_draw_text(surface, draw_font,
                 zd_i64_to_i32((int64_t)bounds.x + padding),
-                text_y, node->text, node->foreground, 1U, inner_width);
+                zd_i64_to_i32(baseline), node->text,
+                node->foreground, inner_width, &drawn_width);
+            (void)drawn_width;
+            return status;
         }
-        return;
+        return ZD_OK;
     }
 
     if (node->kind == ZD_UI_PANEL || node->kind == ZD_UI_ROW ||
@@ -247,9 +276,43 @@ static void zd_render_node(zd_surface *surface, const zd_ui_node *node,
 
         context.surface = surface;
         context.state = state;
+        context.font = font;
         context.depth = depth;
+        context.result = ZD_OK;
         zd_layout_children(node, bounds, zd_render_child, &context);
+        return context.result;
     }
+
+    return ZD_OK;
+}
+
+zd_result zd_ui_render_with_state_and_font(zd_surface *surface,
+                                           const zd_ui_node *root,
+                                           zd_rect viewport,
+                                           const zd_ui_state *state,
+                                           zd_font *font)
+{
+    zd_result surface_status = zd_surface_validate(surface);
+    zd_font_metrics metrics;
+
+    if (surface_status != ZD_OK) return surface_status;
+    if (root == NULL || viewport.width == 0U || viewport.height == 0U) {
+        return ZD_ERR_ARGUMENT;
+    }
+    if (font != NULL && zd_font_get_metrics(font, &metrics) != ZD_OK) {
+        return ZD_ERR_ARGUMENT;
+    }
+
+    return zd_render_node(surface, root, viewport, 0U, state, font);
+}
+
+zd_result zd_ui_render_with_font(zd_surface *surface,
+                                 const zd_ui_node *root,
+                                 zd_rect viewport,
+                                 zd_font *font)
+{
+    return zd_ui_render_with_state_and_font(
+        surface, root, viewport, NULL, font);
 }
 
 zd_result zd_ui_render_with_state(zd_surface *surface,
@@ -257,24 +320,16 @@ zd_result zd_ui_render_with_state(zd_surface *surface,
                                   zd_rect viewport,
                                   const zd_ui_state *state)
 {
-    zd_result surface_status = zd_surface_validate(surface);
-
-    if (surface_status != ZD_OK) {
-        return surface_status;
-    }
-    if (root == NULL || viewport.width == 0U || viewport.height == 0U) {
-        return ZD_ERR_ARGUMENT;
-    }
-
-    zd_render_node(surface, root, viewport, 0U, state);
-    return ZD_OK;
+    return zd_ui_render_with_state_and_font(
+        surface, root, viewport, state, NULL);
 }
 
 zd_result zd_ui_render(zd_surface *surface,
                        const zd_ui_node *root,
                        zd_rect viewport)
 {
-    return zd_ui_render_with_state(surface, root, viewport, NULL);
+    return zd_ui_render_with_state_and_font(
+        surface, root, viewport, NULL, NULL);
 }
 
 typedef struct {

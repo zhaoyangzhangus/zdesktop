@@ -7,6 +7,7 @@ The repository is split into a platform-independent core and platform adapters.
 The core owns:
 - surface validation and pixel operations;
 - clipping, alpha compositing, primitive drawing, and text rasterization;
+- TrueType font table validation, glyph metrics, UTF-8 decoding, and glyph rasterization;
 - immutable declarative UI descriptions;
 - layout traversal, button hit testing, and control painting;
 - optional hover, pressed, and focus visual state.
@@ -15,22 +16,34 @@ A platform adapter owns:
 - display discovery and mode selection;
 - framebuffer mapping or allocation;
 - input acquisition and event translation;
+- loading font files into caller-owned memory;
 - resource allocation;
 - presentation and synchronization.
 
-The renderer receives a caller-owned surface. It does not open devices, allocate memory, call an operating-system API, or assume a particular framebuffer address.
+The renderer receives caller-owned surface, font data, and font scratch memory. It does not open devices, allocate memory, call an operating-system API, or assume a particular framebuffer address.
 
 ## Core constraints
 
 - C11, with a small public header.
-- No libc calls in src/.
+- No libc or libm calls in src/.
 - No dynamic allocation in the core.
-- No SDL, GTK, Qt, Cairo, X11, Wayland, or other host graphics dependency.
+- No SDL, GTK, Qt, Cairo, X11, Wayland, FreeType, or other host graphics dependency.
 - Pixel colors are passed as numeric 0xAARRGGBB values.
 - Surface memory layout and pitch are explicit.
 - The core is compiled with -ffreestanding -fno-builtin by the Makefile.
+- stb_truetype is vendored and its allocator, memory, and math hooks are redirected to internal routines and caller-owned scratch memory.
 
-Standard integer and size type headers are used for declarations. This does not imply a runtime dependency on libc.
+## TrueType fonts
+
+zd_font references immutable font bytes and a caller-provided scratch arena. The font bytes must outlive the font object. The scratch arena is reused for each glyph and is never allocated internally; 128 KiB is the minimum accepted size and 256–512 KiB is recommended for complex glyphs.
+
+The first implementation supports TrueType glyf outlines in .ttf files and TrueType Collection .ttc faces. It validates the sfnt table directory, required tables, horizontal metrics, cmap format 4/12 records, and monotonic loca offsets before initializing the rasterizer. Glyphs are decoded from UTF-8, looked up in cmap, positioned with horizontal metrics and legacy kern/supported GPOS data, rasterized to grayscale coverage, and alpha-composited into RGBX/BGRX surfaces.
+
+OpenType CFF outlines (.otf) are rejected. Variable-font axis selection, shaping engines (HarfBuzz), complex script shaping, ligatures, bidirectional layout, and fallback-font chains are not part of this initial milestone.
+
+**Font trust boundary:** stb_truetype v1.26 explicitly does not guarantee safe parsing of hostile font data and does not range-check every internal glyph offset. zdesktop checks the outer sfnt directory and loca ranges, but this is not a complete sandbox. Only load trusted font files. A hardened parser or isolated font-loading process is required before accepting arbitrary user-supplied fonts in a privileged kernel environment.
+
+The Debian example loads WenQuanYi Micro Hei from the fonts-wqy-microhei package at /usr/share/fonts/truetype/wqy/wqy-microhei.ttc. No font binary is bundled in the repository. The package provides a compact CJK TrueType Collection.
 
 ## Declarative controls
 
@@ -38,14 +51,7 @@ The first milestone uses immutable zd_ui_node descriptors and application-owned 
 
 The initial renderer implements PANEL, ROW, COLUMN, TEXT, and BUTTON. The layout traversal is shared by painting and button hit testing so that pointer targets use the same calculated bounds as the renderer.
 
-A separate zd_ui_state references hovered, pressed, and focused immutable nodes. It does not own nodes or allocate memory. Optional hover and pressed backgrounds and focus borders are specified in the node descriptor.
-
-The intended evolution is:
-1. keep the descriptor format independent from runtime state;
-2. add a runtime node pool for mutable controls;
-3. place variable properties in compact property storage;
-4. compile shared style sheets into a versioned binary format;
-5. make the same tree semantics available to a binary resource loader.
+A separate zd_ui_state references hovered, pressed, and focused immutable nodes. It does not own nodes or allocate memory. Optional hover and pressed backgrounds and focus borders are specified in the node descriptor. Each text node can select a pixel size through font_size.
 
 The current layout is a small vertical/horizontal flow foundation, not a complete CSS implementation. Parent clipping, scroll containers, flex grow/shrink, grid, and text shaping remain future work.
 
@@ -61,19 +67,20 @@ The backend converts RGBX pixels to an opaque RGBA byte stream for SDL presentat
 
 The public color representation is 0xAARRGGBB. Supported output surface byte orders are RGBX and BGRX. The reserved byte is written as zero by the core.
 
-Alpha compositing is performed against the existing opaque destination pixel. The first font is a built-in 5x7 ASCII bitmap font; non-ASCII glyphs are not yet implemented.
+TrueType glyph bitmaps are 8-bit grayscale coverage. Glyph coverage is multiplied by the requested text alpha and composited through the same destination-aware alpha blending path as rectangles.
 
 ## Roadmap
 
 - [x] C11 public surface and UI descriptor API
 - [x] Freestanding software rasterizer foundation
 - [x] Debian headless PPM demo
-- [x] Initial renderer tests
 - [x] Debian SDL2 window backend
 - [x] Keyboard and mouse event translation
 - [x] Button hover/pressed/focus painting and hit testing
-- [ ] Parent clipping and dirty-rectangle tracking
-- [ ] Text input controls, focus manager, and accessibility semantics
+- [x] TrueType glyf outline rendering and UTF-8 decoding
+- [ ] Glyph cache and dirty-rectangle tracking
+- [ ] Parent clipping and scroll containers
+- [ ] Text shaping, fallback fonts, and bidirectional text
 - [ ] Runtime node pool and mutable properties
 - [ ] Style cascade and binary style compiler
 - [ ] UEFI GOP adapter

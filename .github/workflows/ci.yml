@@ -9,12 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install SDL2 development dependency
+      - name: Install build, SDL2, and TrueType test-font dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libsdl2-dev
+          sudo apt-get install -y build-essential pkg-config libsdl2-dev fonts-wqy-microhei
       - name: Build and test
         run: |
+          make clean
           make freestanding-check
           make test
           make demo

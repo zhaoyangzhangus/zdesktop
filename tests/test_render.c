@@ -1,9 +1,15 @@
 #include "zdesktop.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#ifndef ZD_TEST_FONT_PATH
+#define ZD_TEST_FONT_PATH "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
+#endif
+
 static unsigned int failures;
+static uint8_t font_scratch[512U * 1024U];
 
 #define CHECK(condition) do { \
     if (!(condition)) { \
@@ -174,6 +180,132 @@ static void test_hit_test_and_hover_paint(void)
     }
 }
 
+static uint8_t *load_test_font(size_t *out_size)
+{
+    FILE *file = fopen(ZD_TEST_FONT_PATH, "rb");
+    long length;
+    uint8_t *data;
+
+    if (file == NULL) return NULL;
+    if (fseek(file, 0L, SEEK_END) != 0) {
+        (void)fclose(file);
+        return NULL;
+    }
+    length = ftell(file);
+    if (length <= 0L || fseek(file, 0L, SEEK_SET) != 0) {
+        (void)fclose(file);
+        return NULL;
+    }
+    data = (uint8_t *)malloc((size_t)length);
+    if (data == NULL) {
+        (void)fclose(file);
+        return NULL;
+    }
+    if (fread(data, 1U, (size_t)length, file) != (size_t)length) {
+        free(data);
+        (void)fclose(file);
+        return NULL;
+    }
+    (void)fclose(file);
+    *out_size = (size_t)length;
+    return data;
+}
+
+static void test_ttf_rendering(void)
+{
+    size_t font_size = 0U;
+    uint8_t *font_data = load_test_font(&font_size);
+    uint8_t pixels[256U * 80U * 4U];
+    uint8_t invalid_data[16] = {0U};
+    zd_font font;
+    zd_font_metrics font_metrics;
+    zd_text_metrics text_metrics;
+    zd_surface surface = {
+        pixels, 256U, 80U, 256U * 4U, ZD_PIXEL_RGBX8888
+    };
+    int32_t drawn_width = 0;
+    size_t changed_pixels = 0U;
+    size_t i;
+
+    CHECK(font_data != NULL);
+    if (font_data == NULL) return;
+
+    if (zd_font_init(&font, font_data, font_size, 0U, 20U,
+                     font_scratch, sizeof(font_scratch)) != ZD_OK) {
+        CHECK(0);
+        free(font_data);
+        return;
+    }
+    CHECK(zd_font_get_metrics(&font, &font_metrics) == ZD_OK);
+    CHECK(zd_font_set_pixel_height(&font, 24U) == ZD_OK);
+    CHECK(zd_font_get_metrics(&font, &font_metrics) == ZD_OK);
+    CHECK(font_metrics.pixel_height == 24U);
+    CHECK(zd_font_set_pixel_height(&font, 20U) == ZD_OK);
+    CHECK(zd_font_get_metrics(&font, &font_metrics) == ZD_OK);
+    CHECK(font_metrics.pixel_height == 20U);
+    CHECK(font_metrics.ascent > 0);
+    CHECK(font_metrics.line_height >= 20U);
+
+    CHECK(zd_measure_text(&font, "TTF 中 文 A", 0U,
+                          &text_metrics) == ZD_OK);
+    CHECK(text_metrics.width > 0);
+    CHECK(text_metrics.line_count == 1U);
+    CHECK(text_metrics.height == font_metrics.line_height);
+
+    CHECK(zd_measure_text(&font, "A\n中", 0U,
+                          &text_metrics) == ZD_OK);
+    CHECK(text_metrics.line_count == 2U);
+    CHECK(text_metrics.height == font_metrics.line_height * 2U);
+
+    zd_surface_clear(&surface, 0xFF000000U);
+    CHECK(zd_draw_text(&surface, &font, 8, 30, "TTF 中 文 A",
+                       0xFFFFFFFFU, 220U, &drawn_width) == ZD_OK);
+    CHECK(drawn_width > 0);
+    for (i = 0U; i < sizeof(pixels); i += 4U) {
+        if (pixels[i] != 0U || pixels[i + 1U] != 0U ||
+            pixels[i + 2U] != 0U) {
+            ++changed_pixels;
+        }
+    }
+    CHECK(changed_pixels > 20U);
+
+    zd_surface_clear(&surface, 0xFF000000U);
+    CHECK(zd_draw_text(&surface, &font, 10, 30, "MMMMMMMM",
+                       0xFFFFFFFFU, 20U, &drawn_width) == ZD_OK);
+    {
+        int outside_changed = 0;
+        for (i = 0U; i < 80U; ++i) {
+            size_t x;
+            for (x = 30U; x < 256U; ++x) {
+                size_t p = (i * 256U + x) * 4U;
+                if (pixels[p] != 0U || pixels[p + 1U] != 0U ||
+                    pixels[p + 2U] != 0U) {
+                    outside_changed = 1;
+                }
+            }
+        }
+        CHECK(outside_changed == 0);
+    }
+
+    CHECK(zd_draw_text(&surface, &font, 8, 30,
+                       "\xF0\x28\x8C\x28", 0xFFFFFFFFU,
+                       100U, &drawn_width) == ZD_OK);
+
+    CHECK(zd_font_init(&font, invalid_data, sizeof(invalid_data),
+                       0U, 18U, font_scratch,
+                       sizeof(font_scratch)) == ZD_ERR_FORMAT);
+    {
+        zd_font second_face;
+        CHECK(zd_font_init(&second_face, font_data, font_size, 1U, 18U,
+                           font_scratch, sizeof(font_scratch)) == ZD_OK);
+    }
+    CHECK(zd_font_init(&font, font_data, font_size, 0U, 18U,
+                       font_scratch, ZD_FONT_SCRATCH_MIN_SIZE - 1U)
+          == ZD_ERR_ARGUMENT);
+
+    free(font_data);
+}
+
 static void test_declarative_ui(void)
 {
     uint8_t pixels[64U * 32U * 4U] = {0U};
@@ -183,7 +315,6 @@ static void test_declarative_ui(void)
     static const zd_ui_node button = {
         .kind = ZD_UI_BUTTON,
         .id = "action",
-        .width = 0U,
         .height = 12U,
         .background = 0xFF3366CCU
     };
@@ -219,13 +350,13 @@ int main(void)
     test_alpha_blending();
     test_row_gap_distribution();
     test_hit_test_and_hover_paint();
+    test_ttf_rendering();
     test_declarative_ui();
 
     if (failures != 0U) {
         (void)fprintf(stderr, "%u test(s) failed\n", failures);
         return 1;
     }
-
-    (void)puts("All zdesktop renderer tests passed.");
+    (void)puts("All zdesktop tests passed.");
     return 0;
 }

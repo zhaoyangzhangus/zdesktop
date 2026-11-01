@@ -3,6 +3,8 @@
 
 #include "zdesktop.h"
 
-uint8_t zd_font_row(unsigned char character, uint8_t row);
+/* surface must already be validated; coordinates must be in bounds. */
+void zd_blend_coverage(zd_surface *surface, uint32_t x, uint32_t y,
+                       uint32_t argb);
 
 #endif
