@@ -11,6 +11,7 @@
 
 typedef struct {
     zd_ui_state ui_state;
+    zd_ui_window_state window_state;
     char status_text[128];
     uint32_t click_count;
     uint32_t width;
@@ -137,6 +138,24 @@ static const zd_ui_node root = {
     .child_count = 2U
 };
 
+
+static const zd_ui_window_desc main_window = {
+    .title = "zdesktop - 控件演示窗口",
+    .content = &root,
+    .background = 0xFF0F172AU,
+    .border_color = 0xFF64748BU,
+    .title_bar_background = 0xFF1D4ED8U,
+    .inactive_title_bar_background = 0xFF334155U,
+    .title_color = 0xFFF8FAFCU,
+    .control_color = 0xFFE2E8F0U,
+    .control_hover_background = 0xFF475569U,
+    .control_pressed_background = 0xFF0F172AU,
+    .title_bar_height = 36U,
+    .border_width = 1U,
+    .control_width = 42U,
+    .title_font_size = 16U
+};
+
 static uint8_t *load_file(const char *path, size_t *out_size)
 {
     FILE *file;
@@ -210,8 +229,9 @@ static void render(zd_surface *surface, void *user_data)
     state.height = surface->height;
     viewport = demo_viewport();
     zd_surface_clear(surface, 0xFF0F172AU);
-    (void)zd_ui_render_with_state_and_font(
-        surface, &root, viewport, &state.ui_state, &ui_font);
+    (void)zd_ui_window_render(
+        surface, &main_window, &state.window_state,
+        &state.ui_state, &ui_font);
 }
 
 static int handle_event(const zd_debian_event *event, void *user_data)
@@ -225,14 +245,34 @@ static int handle_event(const zd_debian_event *event, void *user_data)
         return 1;
 
     case ZD_DEBIAN_EVENT_POINTER_MOVE:
-        state.ui_state.hovered = zd_ui_hit_test(
-            &root, viewport, event->x, event->y, NULL);
+        (void)zd_ui_window_handle_pointer(
+            &main_window, &state.window_state, viewport,
+            ZD_UI_POINTER_MOVE, event->x, event->y,
+            (uint8_t)((event->buttons & ZD_MOUSE_MASK_LEFT) != 0U));
+        {
+            zd_rect client;
+            if (zd_ui_window_get_client_rect(
+                    &main_window, &state.window_state, &client) == ZD_OK) {
+                state.ui_state.hovered = zd_ui_hit_test(
+                    &root, client, event->x, event->y, NULL);
+            }
+        }
         break;
 
     case ZD_DEBIAN_EVENT_POINTER_DOWN:
         if (event->button == ZD_MOUSE_LEFT) {
-            target = zd_ui_hit_test(
-                &root, viewport, event->x, event->y, NULL);
+            zd_ui_window_action action = zd_ui_window_handle_pointer(
+                &main_window, &state.window_state, viewport,
+                ZD_UI_POINTER_DOWN, event->x, event->y, 1U);
+            zd_rect client;
+            if (action == ZD_UI_WINDOW_ACTION_CLOSED) return 1;
+            if (zd_ui_window_get_client_rect(
+                    &main_window, &state.window_state, &client) == ZD_OK) {
+                target = zd_ui_hit_test(
+                    &root, client, event->x, event->y, NULL);
+            } else {
+                target = NULL;
+            }
             state.ui_state.pressed = target;
             if (target != NULL) state.ui_state.focused = target;
         }
@@ -240,8 +280,18 @@ static int handle_event(const zd_debian_event *event, void *user_data)
 
     case ZD_DEBIAN_EVENT_POINTER_UP:
         if (event->button == ZD_MOUSE_LEFT) {
-            target = zd_ui_hit_test(
-                &root, viewport, event->x, event->y, NULL);
+            zd_ui_window_action action = zd_ui_window_handle_pointer(
+                &main_window, &state.window_state, viewport,
+                ZD_UI_POINTER_UP, event->x, event->y, 1U);
+            zd_rect client;
+            if (action == ZD_UI_WINDOW_ACTION_CLOSED) return 1;
+            if (zd_ui_window_get_client_rect(
+                    &main_window, &state.window_state, &client) == ZD_OK) {
+                target = zd_ui_hit_test(
+                    &root, client, event->x, event->y, NULL);
+            } else {
+                target = NULL;
+            }
             if (target != NULL && target == state.ui_state.pressed) {
                 if (activate_button(target) != 0) return 1;
             }
@@ -268,7 +318,15 @@ static int handle_event(const zd_debian_event *event, void *user_data)
                        "文本输入：%.96s", event->text);
         break;
 
+    case ZD_DEBIAN_EVENT_FOCUS_GAINED:
+        state.window_state.active = 1U;
+        break;
+
     case ZD_DEBIAN_EVENT_FOCUS_LOST:
+        state.window_state.active = 0U;
+        state.window_state.dragging = 0U;
+        state.window_state.pressed_control = ZD_UI_WINDOW_CONTROL_NONE;
+        state.window_state.hovered_control = ZD_UI_WINDOW_CONTROL_NONE;
         state.ui_state.pressed = NULL;
         state.ui_state.hovered = NULL;
         break;
@@ -276,6 +334,12 @@ static int handle_event(const zd_debian_event *event, void *user_data)
     case ZD_DEBIAN_EVENT_WINDOW_RESIZED:
         state.width = event->width;
         state.height = event->height;
+        if (state.window_state.maximized != 0U) {
+            state.window_state.bounds.x = 0;
+            state.window_state.bounds.y = 0;
+            state.window_state.bounds.width = event->width;
+            state.window_state.bounds.height = event->height;
+        }
         (void)snprintf(state.status_text, sizeof(state.status_text),
                        "窗口尺寸：%u x %u",
                        event->width, event->height);
@@ -327,6 +391,15 @@ int main(int argc, char **argv)
     state.click_count = 0U;
     state.width = WINDOW_WIDTH;
     state.height = WINDOW_HEIGHT;
+    {
+        zd_rect initial_window = {132, 70, 760U, 500U};
+        status = zd_ui_window_state_init(
+            &state.window_state, initial_window);
+        if (status != ZD_OK) {
+            free(font_data);
+            return 1;
+        }
+    }
 
     app.title = "zdesktop - TrueType desktop";
     app.width = WINDOW_WIDTH;

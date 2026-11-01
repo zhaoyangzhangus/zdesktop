@@ -349,6 +349,108 @@ static void test_declarative_ui(void)
     CHECK(pixels[button_pixel + 2U] == 0xCCU);
 }
 
+
+static void test_window_widget(void)
+{
+    uint8_t pixels[320U * 240U * 4U] = {0U};
+    zd_surface surface = {
+        pixels, 320U, 240U, 320U * 4U, ZD_PIXEL_RGBX8888
+    };
+    static const zd_ui_node content = {
+        .kind = ZD_UI_PANEL,
+        .id = "window-content",
+        .background = 0xFF334455U
+    };
+    static const zd_ui_window_desc desc = {
+        .title = "Test window",
+        .content = &content,
+        .background = 0xFF112233U,
+        .border_color = 0xFFFFFFFFU,
+        .title_bar_background = 0xFF224466U,
+        .title_color = 0xFFFFFFFFU,
+        .control_color = 0xFFFFFFFFU,
+        .title_bar_height = 32U,
+        .border_width = 1U,
+        .control_width = 36U
+    };
+    zd_ui_window_state state;
+    zd_rect work_area = {0, 0, 320U, 240U};
+    zd_rect initial = {20, 20, 200U, 160U};
+    zd_rect client;
+    zd_ui_window_action action;
+    int32_t control_y;
+
+    CHECK(zd_ui_window_state_init(&state, initial) == ZD_OK);
+    CHECK(zd_ui_window_get_client_rect(&desc, &state, &client) == ZD_OK);
+    CHECK(client.x == 21 && client.y == 53);
+    CHECK(client.width == 198U && client.height == 126U);
+
+    CHECK(zd_ui_window_render(&surface, &desc, &state, NULL, NULL) == ZD_OK);
+    {
+        size_t title_pixel = (size_t)(25U * 320U + 30U) * 4U;
+        size_t client_pixel = (size_t)(60U * 320U + 30U) * 4U;
+        CHECK(pixels[title_pixel] == 0x22U);
+        CHECK(pixels[title_pixel + 1U] == 0x44U);
+        CHECK(pixels[title_pixel + 2U] == 0x66U);
+        CHECK(pixels[client_pixel] == 0x33U);
+        CHECK(pixels[client_pixel + 1U] == 0x44U);
+        CHECK(pixels[client_pixel + 2U] == 0x55U);
+    }
+
+    (void)zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_DOWN, 60, 30, 1U);
+    action = zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_MOVE, 80, 50, 1U);
+    CHECK(action == ZD_UI_WINDOW_ACTION_MOVED);
+    CHECK(state.bounds.x == 40 && state.bounds.y == 40);
+    (void)zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_UP, 80, 50, 1U);
+
+    /* Maximize, then restore using the same title-bar control. */
+    control_y = state.bounds.y + 1 + 16;
+    (void)zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_DOWN, 185, control_y, 1U);
+    action = zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_UP, 185, control_y, 1U);
+    CHECK(action == ZD_UI_WINDOW_ACTION_MAXIMIZED);
+    CHECK(state.maximized != 0U);
+    CHECK(state.bounds.x == work_area.x && state.bounds.y == work_area.y);
+    (void)zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_DOWN, 265, 17, 1U);
+    action = zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_UP, 265, 17, 1U);
+    CHECK(action == ZD_UI_WINDOW_ACTION_RESTORED);
+    CHECK(state.maximized == 0U);
+    CHECK(state.bounds.x == 40 && state.bounds.y == 40);
+    CHECK(state.bounds.width == 200U && state.bounds.height == 160U);
+
+    /* Minimize and restore by clicking the remaining title bar. */
+    control_y = state.bounds.y + 1 + 16;
+    (void)zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_DOWN, 149, control_y, 1U);
+    action = zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_UP, 149, control_y, 1U);
+    CHECK(action == ZD_UI_WINDOW_ACTION_MINIMIZED);
+    CHECK(state.minimized != 0U);
+    CHECK(state.bounds.height == 34U);
+    (void)zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_DOWN, 80, 50, 1U);
+    CHECK(state.minimized == 0U);
+    CHECK(state.bounds.height == 160U);
+    (void)zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_UP, 80, 50, 1U);
+
+    /* Close is committed on release, not on press. */
+    (void)zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_DOWN, 221, 57, 1U);
+    CHECK(state.visible != 0U);
+    action = zd_ui_window_handle_pointer(
+        &desc, &state, work_area, ZD_UI_POINTER_UP, 221, 57, 1U);
+    CHECK(action == ZD_UI_WINDOW_ACTION_CLOSED);
+    CHECK(state.visible == 0U);
+    CHECK(zd_ui_window_render(&surface, &desc, &state, NULL, NULL) == ZD_OK);
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1 && argv[1][0] != '\0') {
@@ -363,6 +465,7 @@ int main(int argc, char **argv)
     test_hit_test_and_hover_paint();
     test_ttf_rendering();
     test_declarative_ui();
+    test_window_widget();
 
     if (failures != 0U) {
         (void)fprintf(stderr, "%u test(s) failed\n", failures);

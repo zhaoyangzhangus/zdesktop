@@ -24,6 +24,7 @@ The interactive Debian milestone provides:
 - Caller-provided font scratch memory; no malloc or libm in the renderer.
 - Per-control font sizes, plus CJK-capable text when using a suitable font.
 - Static declarative panel/row/column/text/button descriptors.
+- A platform-independent window widget with title bar, client area, drag, minimize, maximize/restore, and close controls.
 - Button hover, pressed, and keyboard-focus painting and hit testing.
 - A Debian SDL2 window backend with keyboard, text-input, mouse, wheel, resize, and focus events.
 
@@ -78,6 +79,41 @@ make desktop FONT=/path/to/font.ttf FONT_INDEX=0
 ~~~
 
 The SDL2 backend uses the active GNOME display session. It can run on Wayland through SDL's Wayland backend or through XWayland, depending on the installed SDL2 drivers and session environment.
+
+
+## Window widget
+
+The window frame is part of the portable UI core. Its descriptor is immutable;
+each window instance has a separate runtime state:
+
+~~~c
+static const zd_ui_window_desc window = {
+    .title = "Settings",
+    .content = &settings_tree,
+    .title_bar_height = 36,
+    .border_width = 1,
+    .control_width = 42
+};
+
+zd_ui_window_state window_state;
+zd_rect work_area = {0, 0, surface.width, surface.height};
+
+zd_ui_window_state_init(
+    &window_state, (zd_rect){120, 80, 640, 420});
+
+zd_ui_window_render(
+    &surface, &window, &window_state, &ui_state, &font);
+
+/* Translate the platform pointer events to these portable events. */
+zd_ui_window_handle_pointer(
+    &window, &window_state, work_area,
+    ZD_UI_POINTER_DOWN, mouse_x, mouse_y, 1);
+~~~
+
+The pointer API supports title-bar dragging, minimize, maximize/restore, and
+close. The platform adapter remains responsible for acquiring pointer events
+and presenting the framebuffer; the same window renderer can be used with
+Debian SDL2 or a future UEFI GOP surface.
 
 ## Font API
 

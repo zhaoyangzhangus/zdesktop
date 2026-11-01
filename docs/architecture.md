@@ -55,6 +55,28 @@ A separate zd_ui_state references hovered, pressed, and focused immutable nodes.
 
 The current layout is a small vertical/horizontal flow foundation, not a complete CSS implementation. Parent clipping, scroll containers, flex grow/shrink, grid, and text shaping remain future work.
 
+
+## Window widget
+
+zd_ui_window_desc is an immutable, shareable description containing the
+window title, content tree, colors, and title-bar dimensions. Each instance
+has its own zd_ui_window_state with bounds, visibility, active/minimized/
+maximized flags, and pointer interaction state.
+
+The window API is platform-independent:
+- zd_ui_window_render draws the frame, title bar, minimize/maximize/close
+  controls, shadow, and the existing declarative content tree.
+- zd_ui_window_handle_pointer consumes normalized pointer move/down/up
+  events and implements title-bar dragging, minimize, maximize/restore, and
+  close. The caller supplies the desktop work area.
+- zd_ui_window_get_client_rect returns the content viewport so pointer
+  hit-tests can be forwarded to zd_ui_hit_test.
+
+The widget uses only the zdesktop software renderer and TrueType API. It
+does not create an SDL, Wayland, X11, or UEFI window itself. Debian SDL2
+remains the host display/input adapter; a future zkernel/UEFI backend can call
+the same window API with GOP surface memory and native pointer events.
+
 ## Debian backend
 
 The SDL2 backend lives under platform/debian and is not linked into the portable library. It owns the window, an RGBX software surface, a streaming SDL texture, and the event loop.
@@ -72,6 +94,7 @@ TrueType glyph bitmaps are 8-bit grayscale coverage. Glyph coverage is multiplie
 ## Roadmap
 
 - [x] C11 public surface and UI descriptor API
+- [x] Platform-independent window widget with drag/minimize/maximize/close
 - [x] Freestanding software rasterizer foundation
 - [x] Debian headless PPM demo
 - [x] Debian SDL2 window backend

@@ -203,6 +203,91 @@ const zd_ui_node *zd_ui_hit_test(const zd_ui_node *root,
                                  int32_t x, int32_t y,
                                  zd_rect *out_bounds);
 
+
+/*
+ * Platform-independent window widget.
+ * The descriptor/content tree are immutable and shareable. Each instance
+ * owns a separate runtime state. All coordinates are surface pixels.
+ */
+typedef struct {
+    const char *title;
+    const zd_ui_node *content;
+    uint32_t background;
+    uint32_t border_color;
+    uint32_t title_bar_background;
+    uint32_t inactive_title_bar_background;
+    uint32_t title_color;
+    uint32_t control_color;
+    uint32_t control_hover_background;
+    uint32_t control_pressed_background;
+    uint16_t title_bar_height;
+    uint16_t border_width;
+    uint16_t control_width;
+    uint16_t title_font_size;
+} zd_ui_window_desc;
+
+typedef enum {
+    ZD_UI_WINDOW_CONTROL_NONE = 0,
+    ZD_UI_WINDOW_CONTROL_MINIMIZE = 1,
+    ZD_UI_WINDOW_CONTROL_MAXIMIZE = 2,
+    ZD_UI_WINDOW_CONTROL_CLOSE = 3
+} zd_ui_window_control;
+
+typedef struct {
+    zd_rect bounds;
+    zd_rect restore_bounds;
+    zd_rect pre_minimize_bounds;
+    int32_t drag_offset_x;
+    int32_t drag_offset_y;
+    uint8_t visible;
+    uint8_t active;
+    uint8_t minimized;
+    uint8_t maximized;
+    uint8_t dragging;
+    uint8_t has_restore_bounds;
+    zd_ui_window_control hovered_control;
+    zd_ui_window_control pressed_control;
+} zd_ui_window_state;
+
+typedef enum {
+    ZD_UI_POINTER_MOVE = 1,
+    ZD_UI_POINTER_DOWN = 2,
+    ZD_UI_POINTER_UP = 3
+} zd_ui_pointer_event;
+
+typedef enum {
+    ZD_UI_WINDOW_ACTION_NONE = 0,
+    ZD_UI_WINDOW_ACTION_MOVED = 1,
+    ZD_UI_WINDOW_ACTION_MINIMIZED = 2,
+    ZD_UI_WINDOW_ACTION_MAXIMIZED = 3,
+    ZD_UI_WINDOW_ACTION_RESTORED = 4,
+    ZD_UI_WINDOW_ACTION_CLOSED = 5
+} zd_ui_window_action;
+
+zd_result zd_ui_window_state_init(zd_ui_window_state *state,
+                                  zd_rect initial_bounds);
+zd_result zd_ui_window_get_client_rect(const zd_ui_window_desc *desc,
+                                       const zd_ui_window_state *state,
+                                       zd_rect *out_client);
+zd_result zd_ui_window_render(zd_surface *surface,
+                              const zd_ui_window_desc *desc,
+                              const zd_ui_window_state *state,
+                              const zd_ui_state *content_state,
+                              zd_font *font);
+
+/*
+ * Feed normalized pointer events. primary_button is non-zero for the left
+ * button on DOWN/UP and while held on MOVE. work_area keeps a draggable
+ * title bar reachable on the desktop.
+ */
+zd_ui_window_action zd_ui_window_handle_pointer(
+    const zd_ui_window_desc *desc,
+    zd_ui_window_state *state,
+    zd_rect work_area,
+    zd_ui_pointer_event event,
+    int32_t x, int32_t y,
+    uint8_t primary_button);
+
 #ifdef __cplusplus
 }
 #endif
