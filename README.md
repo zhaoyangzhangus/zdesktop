@@ -32,37 +32,37 @@ This is an initial window and control milestone, not yet a complete desktop/wind
 
 Install the SDL2 development dependency:
 
-\`\`\`sh
+```sh
 sudo apt update
 sudo apt install build-essential pkg-config libsdl2-dev
-\`\`\`
+```
 
 Build the portable core, tests, and PPM demo:
 
-\`\`\`sh
+```sh
 make
 make test
 make demo
-\`\`\`
+```
 
 Build and run the interactive Debian window:
 
-\`\`\`sh
+```sh
 make desktop-build
 ./build/zdesktop-desktop
-\`\`\`
+```
 
 Or build and launch it in one step:
 
-\`\`\`sh
+```sh
 make desktop
-\`\`\`
+```
 
 The SDL2 backend uses the active GNOME display session. It can run on Wayland through SDL's Wayland backend or through XWayland, depending on the installed SDL2 drivers and session environment.
 
 ## Repository layout
 
-\`\`\`text
+```text
 include/       Public portable and Debian backend APIs
 src/           Platform-independent UI and renderer core
 platform/      Platform-specific backends
@@ -70,11 +70,11 @@ platform/      Platform-specific backends
 examples/      Headless and interactive Debian examples
 tests/         Host-side core tests
 docs/          Architecture and porting notes
-\`\`\`
+```
 
 ## Porting direction
 
-The core consumes a caller-owned \`zd_surface\`; it does not discover displays or allocate memory. The Debian backend owns SDL2 window creation, framebuffer allocation, event translation, and presentation.
+The core consumes a caller-owned `zd_surface`; it does not discover displays or allocate memory. The Debian backend owns SDL2 window creation, framebuffer allocation, event translation, and presentation.
 
 A future UEFI GOP adapter will translate GOP mode information into a zdesktop surface (including the real scan-line pitch and pixel format). A future zkernel adapter will provide memory, display, input, and scheduling services through explicit platform interfaces.
 

@@ -228,6 +228,7 @@ static int handle_event(const zd_debian_event *event, void *user_data)
 
     case ZD_DEBIAN_EVENT_FOCUS_LOST:
         state.ui_state.pressed = NULL;
+        state.ui_state.hovered = NULL;
         break;
 
     case ZD_DEBIAN_EVENT_WINDOW_RESIZED:

@@ -4,20 +4,20 @@
 
 On Debian testing with GNOME:
 
-\`\`\`sh
+```sh
 sudo apt install build-essential pkg-config libsdl2-dev
-\`\`\`
+```
 
 The portable library and headless demo do not require SDL2. Only the interactive backend target links SDL2.
 
 ## Build and launch
 
-\`\`\`sh
+```sh
 make desktop-build
 ./build/zdesktop-desktop
-\`\`\`
+```
 
-Or use \`make desktop\` to build and launch.
+Or use `make desktop` to build and launch.
 
 SDL2 selects the available video driver. In a GNOME Wayland session it normally uses the Wayland driver when available, otherwise XWayland may be used. No direct X11 or Wayland calls are made by zdesktop.
 
