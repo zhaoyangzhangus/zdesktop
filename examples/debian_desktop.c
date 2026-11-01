@@ -222,12 +222,10 @@ static int activate_button(const zd_ui_node *button)
 
 static void render(zd_surface *surface, void *user_data)
 {
-    zd_rect viewport;
     (void)user_data;
 
     state.width = surface->width;
     state.height = surface->height;
-    viewport = demo_viewport();
     zd_surface_clear(surface, 0xFF0F172AU);
     (void)zd_ui_window_render(
         surface, &main_window, &state.window_state,
