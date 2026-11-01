@@ -83,7 +83,6 @@ static void test_alpha_blending(void)
     CHECK(pixels[2] >= 127U && pixels[2] <= 129U);
 }
 
-
 static void test_row_gap_distribution(void)
 {
     uint8_t pixels[20U * 10U * 4U] = {0U};
@@ -116,6 +115,63 @@ static void test_row_gap_distribution(void)
     CHECK(pixels[second_pixel] == 0U);
     CHECK(pixels[second_pixel + 1U] == 0xFFU);
     CHECK(pixels[second_pixel + 2U] == 0U);
+}
+
+static void test_hit_test_and_hover_paint(void)
+{
+    uint8_t pixels[40U * 20U * 4U] = {0U};
+    zd_surface surface = {
+        pixels, 40U, 20U, 40U * 4U, ZD_PIXEL_RGBX8888
+    };
+    static const zd_ui_node first = {
+        .kind = ZD_UI_BUTTON,
+        .id = "first",
+        .width = 16U,
+        .background = 0xFFFF0000U,
+        .focus_border_color = 0xFFFFFFFFU
+    };
+    static const zd_ui_node second = {
+        .kind = ZD_UI_BUTTON,
+        .id = "second",
+        .width = 16U,
+        .background = 0xFF0000FFU,
+        .hover_background = 0xFF00AA00U
+    };
+    static const zd_ui_node *const children[] = {
+        &first, &second
+    };
+    static const zd_ui_node root = {
+        .kind = ZD_UI_ROW,
+        .gap = 4U,
+        .children = children,
+        .child_count = 2U
+    };
+    zd_rect viewport = {0, 0, 40U, 20U};
+    zd_rect hit_bounds;
+    zd_ui_state state = {NULL, NULL, &first};
+    const zd_ui_node *hit;
+
+    hit = zd_ui_hit_test(&root, viewport, 8, 10, &hit_bounds);
+    CHECK(hit == &first);
+    CHECK(hit_bounds.x == 0);
+    CHECK(hit_bounds.width == 16U);
+
+    hit = zd_ui_hit_test(&root, viewport, 24, 10, &hit_bounds);
+    CHECK(hit == &second);
+    CHECK(hit_bounds.x == 20);
+    CHECK(hit_bounds.width == 16U);
+
+    CHECK(zd_ui_hit_test(&root, viewport, 18, 10, NULL) == NULL);
+    CHECK(zd_ui_hit_test(&root, viewport, 39, 19, NULL) == NULL);
+
+    state.hovered = &second;
+    CHECK(zd_ui_render_with_state(&surface, &root, viewport, &state) == ZD_OK);
+    {
+        size_t pixel = (size_t)(10U * 40U + 24U) * 4U;
+        CHECK(pixels[pixel] == 0U);
+        CHECK(pixels[pixel + 1U] == 0xAAU);
+        CHECK(pixels[pixel + 2U] == 0U);
+    }
 }
 
 static void test_declarative_ui(void)
@@ -162,6 +218,7 @@ int main(void)
     test_clipping();
     test_alpha_blending();
     test_row_gap_distribution();
+    test_hit_test_and_hover_paint();
     test_declarative_ui();
 
     if (failures != 0U) {

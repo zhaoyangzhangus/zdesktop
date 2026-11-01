@@ -9,13 +9,14 @@ extern "C" {
 #endif
 
 #define ZD_VERSION_MAJOR 0
-#define ZD_VERSION_MINOR 1
+#define ZD_VERSION_MINOR 2
 #define ZD_VERSION_PATCH 0
 
 typedef enum {
     ZD_OK = 0,
     ZD_ERR_ARGUMENT = -1,
-    ZD_ERR_FORMAT = -2
+    ZD_ERR_FORMAT = -2,
+    ZD_ERR_BACKEND = -3
 } zd_result;
 
 /*
@@ -73,7 +74,9 @@ typedef enum {
  * children. A zero cross-axis size stretches to the available inner size.
  * PANEL uses vertical (column) flow.
  *
- * Colors are 0xAARRGGBB. A zero-alpha background is transparent.
+ * Colors are 0xAARRGGBB. A zero-alpha background is transparent. Hover,
+ * pressed, and focus colors are optional; zero alpha falls back to the normal
+ * background or border.
  */
 typedef struct zd_ui_node {
     zd_ui_kind kind;
@@ -84,6 +87,9 @@ typedef struct zd_ui_node {
     uint32_t background;
     uint32_t foreground;
     uint32_t border_color;
+    uint32_t hover_background;
+    uint32_t pressed_background;
+    uint32_t focus_border_color;
     uint16_t padding;
     uint16_t gap;
     uint16_t border_width;
@@ -91,10 +97,32 @@ typedef struct zd_ui_node {
     uint16_t child_count;
 } zd_ui_node;
 
+/* Runtime visual state references immutable nodes; it owns no node memory. */
+typedef struct {
+    const zd_ui_node *hovered;
+    const zd_ui_node *pressed;
+    const zd_ui_node *focused;
+} zd_ui_state;
+
 /* Renders the immutable tree into viewport. No allocation is performed. */
 zd_result zd_ui_render(zd_surface *surface,
                        const zd_ui_node *root,
                        zd_rect viewport);
+
+/* Same renderer with optional hover, pressed, and keyboard-focus styling. */
+zd_result zd_ui_render_with_state(zd_surface *surface,
+                                  const zd_ui_node *root,
+                                  zd_rect viewport,
+                                  const zd_ui_state *state);
+
+/*
+ * Returns the topmost BUTTON under the point, or NULL. Coordinates are in
+ * surface/viewport pixels. out_bounds may be NULL.
+ */
+const zd_ui_node *zd_ui_hit_test(const zd_ui_node *root,
+                                 zd_rect viewport,
+                                 int32_t x, int32_t y,
+                                 zd_rect *out_bounds);
 
 #ifdef __cplusplus
 }

@@ -12,6 +12,12 @@ A backend constructs a zd_surface using:
 
 The pitch may be larger than width * 4. Never assume tightly packed scan lines.
 
+## Input contract
+
+The Debian backend demonstrates the platform-independent event model: key transitions, UTF-8 text input, pointer motion/buttons, wheel, focus, and resize notifications. The zkernel adapter should translate its native input sources into equivalent events without importing SDL types into the core.
+
+Keyboard events use USB HID Keyboard/Keypad Usage IDs. This provides a stable key identity independent of the active keyboard layout; text entry remains a separate UTF-8 event.
+
 ## UEFI GOP adapter plan
 
 The GOP adapter should:
@@ -35,7 +41,7 @@ The zkernel backend will replace only platform services:
 - keyboard and pointer event sources;
 - timer/scheduler integration.
 
-Do not add zkernel headers to the portable renderer. Keep OS-specific interfaces under a future platform/zkernel directory.
+Do not add zkernel headers to the portable renderer. Keep OS-specific interfaces under a future platform/zkernel directory. The SDL2 header and implementation belong only to platform/debian.
 
 ## Debian validation
 
@@ -43,5 +49,6 @@ Run:
 - make freestanding-check
 - make test
 - make demo
+- make desktop-build (requires pkg-config and libsdl2-dev)
 
-The headless demo writes a PPM image. This validates the same renderer and UI tree without introducing a host graphics toolkit.
+The interactive desktop demo is launched with ./build/zdesktop-desktop or make desktop. It validates the same UI tree, layout, and software renderer used by future non-Debian backends.
