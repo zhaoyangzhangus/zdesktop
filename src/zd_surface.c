@@ -15,7 +15,9 @@ zd_result zd_surface_validate(const zd_surface *surface)
     }
 
     minimum_pitch = (uint64_t)surface->width * 4U;
-    if ((uint64_t)surface->pitch_bytes < minimum_pitch) {
+    if ((uint64_t)surface->pitch_bytes < minimum_pitch ||
+        (uint64_t)surface->pitch_bytes * surface->height >
+            (uint64_t)((size_t)-1)) {
         return ZD_ERR_ARGUMENT;
     }
 
