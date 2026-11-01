@@ -83,6 +83,41 @@ static void test_alpha_blending(void)
     CHECK(pixels[2] >= 127U && pixels[2] <= 129U);
 }
 
+
+static void test_row_gap_distribution(void)
+{
+    uint8_t pixels[20U * 10U * 4U] = {0U};
+    zd_surface surface = {
+        pixels, 20U, 10U, 20U * 4U, ZD_PIXEL_RGBX8888
+    };
+    static const zd_ui_node first = {
+        .kind = ZD_UI_BUTTON,
+        .height = 10U,
+        .background = 0xFFFF0000U
+    };
+    static const zd_ui_node second = {
+        .kind = ZD_UI_BUTTON,
+        .height = 10U,
+        .background = 0xFF00FF00U
+    };
+    static const zd_ui_node *const children[] = {
+        &first, &second
+    };
+    static const zd_ui_node root = {
+        .kind = ZD_UI_ROW,
+        .gap = 4U,
+        .children = children,
+        .child_count = 2U
+    };
+    zd_rect viewport = {0, 0, 20U, 10U};
+    size_t second_pixel = (size_t)(5U * 20U + 17U) * 4U;
+
+    CHECK(zd_ui_render(&surface, &root, viewport) == ZD_OK);
+    CHECK(pixels[second_pixel] == 0U);
+    CHECK(pixels[second_pixel + 1U] == 0xFFU);
+    CHECK(pixels[second_pixel + 2U] == 0U);
+}
+
 static void test_declarative_ui(void)
 {
     uint8_t pixels[64U * 32U * 4U] = {0U};
@@ -126,6 +161,7 @@ int main(void)
     test_pitch_validation();
     test_clipping();
     test_alpha_blending();
+    test_row_gap_distribution();
     test_declarative_ui();
 
     if (failures != 0U) {
