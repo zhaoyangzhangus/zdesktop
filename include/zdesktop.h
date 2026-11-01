@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 #define ZD_VERSION_MAJOR 0
-#define ZD_VERSION_MINOR 3
+#define ZD_VERSION_MINOR 4
 #define ZD_VERSION_PATCH 0
 
 #define ZD_FONT_SCRATCH_MIN_SIZE (128U * 1024U)

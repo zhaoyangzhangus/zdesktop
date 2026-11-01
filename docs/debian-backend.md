@@ -49,8 +49,12 @@ The core supports TrueType glyf outlines in .ttf files and .ttc collections. It 
 
 ## Initial demo
 
-The demo contains two buttons:
-- 点击测试: increments the click counter.
-- 退出: closes the window.
+The SDL2 host window displays a zdesktop-managed window. Its title bar can be
+dragged, and its minimize, maximize/restore, and close controls are functional.
+The close control exits this single-window demo.
 
-Move the pointer to see hover painting, press a button to see pressed painting, and click to activate. Tab switches keyboard focus; Enter or Space activates the focused button; Escape closes the window. Text input and wheel activity are shown in the status line.
+The content contains two buttons:
+- 点击测试: increments the click counter.
+- 退出: closes the demo.
+
+Move the pointer to see hover painting, press a button to see pressed painting, and click to activate. Tab switches keyboard focus; Enter or Space activates the focused button; Escape closes the demo. Text input and wheel activity are shown in the status line.
