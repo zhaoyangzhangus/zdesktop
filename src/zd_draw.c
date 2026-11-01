@@ -114,7 +114,9 @@ void zd_stroke_rect(zd_surface *surface, zd_rect rect,
 {
     int64_t right;
     int64_t bottom;
+    int64_t middle_y;
     zd_rect edge;
+    uint32_t middle_height;
 
     if (zd_surface_validate(surface) != ZD_OK ||
         rect.width == 0U || rect.height == 0U || thickness == 0U) {
@@ -123,6 +125,17 @@ void zd_stroke_rect(zd_surface *surface, zd_rect rect,
 
     if (thickness > rect.width) thickness = rect.width;
     if (thickness > rect.height) thickness = rect.height;
+
+    /*
+     * If the border is at least half as thick as either dimension, the
+     * border covers the complete rectangle. Draw once to avoid blending
+     * overlapping translucent edges multiple times.
+     */
+    if ((uint64_t)thickness * 2U >= rect.width ||
+        (uint64_t)thickness * 2U >= rect.height) {
+        zd_fill_rect(surface, rect, argb);
+        return;
+    }
 
     edge.x = rect.x;
     edge.y = rect.y;
@@ -136,16 +149,20 @@ void zd_stroke_rect(zd_surface *surface, zd_rect rect,
         zd_fill_rect(surface, edge, argb);
     }
 
-    edge.x = rect.x;
-    edge.y = rect.y;
-    edge.width = thickness;
-    edge.height = rect.height;
-    zd_fill_rect(surface, edge, argb);
-
-    right = (int64_t)rect.x + (int64_t)rect.width - thickness;
-    if (right >= INT32_MIN && right <= INT32_MAX) {
-        edge.x = (int32_t)right;
+    middle_y = (int64_t)rect.y + thickness;
+    middle_height = rect.height - thickness * 2U;
+    if (middle_y >= INT32_MIN && middle_y <= INT32_MAX) {
+        edge.x = rect.x;
+        edge.y = (int32_t)middle_y;
+        edge.width = thickness;
+        edge.height = middle_height;
         zd_fill_rect(surface, edge, argb);
+
+        right = (int64_t)rect.x + (int64_t)rect.width - thickness;
+        if (right >= INT32_MIN && right <= INT32_MAX) {
+            edge.x = (int32_t)right;
+            zd_fill_rect(surface, edge, argb);
+        }
     }
 }
 
