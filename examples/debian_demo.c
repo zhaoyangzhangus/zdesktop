@@ -19,7 +19,7 @@ static const zd_ui_node subtitle = {
     .id = "subtitle",
     .text = "DECLARATIVE UI FOR ZKERNEL",
     .height = 22U,
-    .foreground = 0FFB8C4D6U
+    .foreground = 0xFFB8C4D6U
 };
 
 static const zd_ui_node button = {
