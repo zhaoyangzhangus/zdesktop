@@ -172,7 +172,6 @@ static void zd_render_node(zd_surface *surface, const zd_ui_node *node,
             if (i + 1U < node->child_count) {
                 uint32_t actual_gap = zd_min_u32(node->gap, remaining_main);
                 cursor += actual_gap;
-                remaining_main -= actual_gap;
             }
         }
     }
