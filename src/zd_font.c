@@ -667,7 +667,6 @@ zd_result zd_draw_text(zd_surface *surface, zd_font *font,
             pen_x = 0.0f;
             previous = 0U;
             baseline += font->line_height;
-            ++line_count;
             continue;
         }
 
